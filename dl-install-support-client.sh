@@ -146,7 +146,7 @@ then
 	# separately, then extract the launchd service names and finally unload them.
 	# array variables so we can deal with more than one service potentially loaded.
 	laarray=($( /usr/bin/su - $currentuser -c "/bin/launchctl list" | /usr/bin/grep com.bomgar | /usr/bin/awk '{ print $3 }' ))
-	for la ($laarray); do /bin/launchctl bootout user/$ld; done
+	for la ($laarray); do /bin/launchctl bootout user/$la; done
 
 	ldarray=($( /bin/launchctl list | /usr/bin/grep com.bomgar | /usr/bin/awk '{ print $3 }' ))
 	for ld ($ldarray); do /bin/launchctl bootout system/$ld; done
