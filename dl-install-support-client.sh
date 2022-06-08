@@ -76,13 +76,13 @@ groupid=$( echo $groups \
 jumpclientconfig='
 {
     "name":"",
-    "jump_group_id":"'$groupid'",
+    "jump_group_id":'$groupid',
     "jump_policy_id":null,
     "jump_group_type":"shared",
     "connection_type":"active",
-    "attended_session_policy_id":"5",
-    "unattended_session_policy_id":"5",
-    "valid_duration":"30",
+    "attended_session_policy_id":5,
+    "unattended_session_policy_id":5,
+    "valid_duration":30,
     "elevate_install":true,
     "elevate_prompt":true,
     "is_quiet":true,
