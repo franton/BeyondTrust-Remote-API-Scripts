@@ -73,6 +73,7 @@ groupid=$( echo $groups \
 # session policy id 3 is none.
 # session policy id 4 is the Do Not Prompt: Screen Sharing option.
 # session policy id 5 is the Prompt User: Screen Sharing option.
+# Modification suggested by @Partario on mac admins slack for silent installation, by replacing the "is_quiet" for "customer_client_start_mode".
 jumpclientconfig='
 {
     "name":"",
@@ -85,7 +86,7 @@ jumpclientconfig='
     "valid_duration":30,
     "elevate_install":true,
     "elevate_prompt":true,
-    "is_quiet":true,
+    "customer_client_start_mode":"hidden",
     "allow_override_jump_group":false,
     "allow_override_jump_policy":false,
 	"allow_override_name":false,
