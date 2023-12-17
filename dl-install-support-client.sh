@@ -224,7 +224,7 @@ sdc=$( /usr/bin/find "$tmpmnt" -iname "sdcust" -type f )
 sleep 20
 
 # Unmount the disk image
-/usr/bin/hdiutil detach "$tmpmnt"
+/usr/sbin/diskutil unmount force "$tmpmnt"
 
 # Remove the temporary mount point and downloaded file.
 /bin/rm -rf "$tmpmnt"
