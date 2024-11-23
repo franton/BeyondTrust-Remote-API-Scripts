@@ -30,9 +30,6 @@ dlfolder="/private/tmp"
 currentuser=$( /usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | /usr/bin/awk -F': ' '/[[:space:]]+Name[[:space:]]:/ { if ( $2 != "loginwindow" ) { print $2 }}' )
 userid=$( /usr/bin/id -u $currentuser )
 
-# Work out major os version
-majver=$( /usr/bin/sw_vers -productVersion | /usr/bin/cut -d "." -f1 )
-
 #####
 ## Download the latest BeyondTrust client from their API
 #####
@@ -44,12 +41,7 @@ request=$( /usr/bin/curl -s -X POST "${url}/${token}" \
 -d "grant_type=client_credentials" )
 
 # Extract the bearer token from the json output above
-if [ "$majver" -le 11 ];
-then
-	access_token=$( /usr/bin/osascript -l 'JavaScript' -e "JSON.parse(\`$request\`).access_token" )
-else
-	access_token=$( /usr/bin/plutil -extract access_token raw -o - - <<< "$request" )
-fi
+access_token=$( /usr/bin/plutil -extract access_token raw -o - - <<< "$request" )
 
 # Get a list of the jump groups
 groups=$( /usr/bin/curl -s -X GET "${url}/${base}/${jumpgroup}" \
@@ -62,11 +54,11 @@ groups=$( /usr/bin/curl -s -X GET "${url}/${base}/${jumpgroup}" \
 # We can then grep for the line with the name we want. Split that into multiple lines,
 # find the id line and extract the value. Yuck but it works.
 groupid=$( echo $groups \
-		| /usr/bin/sed 's/},{/}\n{/g' \
-		| /usr/bin/grep "$jumpgroupname" \
-		| /usr/bin/sed 's/,/\n/g' \
-		| /usr/bin/grep id \
-		| /usr/bin/cut -d":" -f2 )
+	| /usr/bin/sed 's/},{/}\n{/g' \
+	| /usr/bin/grep "$jumpgroupname" \
+	| /usr/bin/sed 's/,/\n/g' \
+	| /usr/bin/grep id \
+	| /usr/bin/cut -d":" -f2 )
 
 # We're ready to request the download. First form the data to pass to the API
 # Feed it the groupid from before.
@@ -74,8 +66,7 @@ groupid=$( echo $groups \
 # session policy id 4 is the Do Not Prompt: Screen Sharing option.
 # session policy id 5 is the Prompt User: Screen Sharing option.
 # Modification suggested by @Partario on mac admins slack for silent installation, by replacing the "is_quiet" for "customer_client_start_mode".
-jumpclientconfig='
-{
+jumpclientconfig='{
     "name":"",
     "jump_group_id":'$groupid',
     "jump_policy_id":null,
@@ -100,14 +91,8 @@ uid=$( /usr/bin/curl -s -X POST "${url}/${base}/${installer}" \
 -H "Authorization: Bearer ${access_token}" )
 
 # Extract the installer ID from the output
-if [ "$majver" -le 11 ];
-then
-	installer_id=$( /usr/bin/osascript -l 'JavaScript' -e "JSON.parse(\`$uid\`).installer_id" )
-	key_info=$( /usr/bin/osascript -l 'JavaScript' -e "JSON.parse(\`$uid\`).key_info" )
-else
-	installer_id=$( /usr/bin/plutil -extract installer_id raw -o - - <<< "$uid" )
-	key_info=$( /usr/bin/plutil -extract key_info raw -o - - <<< "$uid" )
-fi
+installer_id=$( /usr/bin/plutil -extract installer_id raw -o - - <<< "$uid" )
+filename=$( /usr/bin/plutil -extract key_info.mac-osx-x86.filename raw -o - - <<< "$uid" )
 
 # Download latest installer to private tmp folder. Retry if required.
 for loop in {1..10};
@@ -118,7 +103,7 @@ do
 		-H "Accept: application/json" \
 		-H "Authorization: Bearer ${access_token}" \
 		-w "%{http_code}" \
-		-o ${dlfolder}/bomgar-scc-${key_info}.dmg )
+		-o ${dlfolder}/${filename} )
 	[ "$test" = "200" ] && break
 done
 
@@ -168,27 +153,17 @@ fi
 
 # Generate the query date we require. As long as our hostnames are correct,
 # then we can find the mac we're running on.
-devicecheckoptions='
-{
-"name":"'$( hostname )'"
-}'
 
 # Do the API query for the hostname. Strip off any opening [ ] characters.
 # It can break the json parsing otherwise.
-devicerecord=$( /usr/bin/curl -s -X GET "${url}/${base}/${jumpclient}" \
-	-d "${devicecheckoptions}" \
-	-H "Content-Type: application/json" \
-	-H "Authorization: Bearer ${access_token}" | /usr/bin/sed 's/[][]//g' )
+devicerecord=$( /usr/bin/curl -s -X GET "${url}/${base}/${jumpclient}?name=$( hostname )" \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer ${access_token}" | /usr/bin/sed 's/[][]//g' )
 
 if [ ! -z "$devicerecord" ];
 then
 	# Existing record detected. Find it's ID number
-	if [ "$majver" -le 11 ];
-	then
-		deviceid=$( /usr/bin/osascript -l 'JavaScript' -e "JSON.parse(\`$devicerecord\`).id" )
-	else
-		deviceid=$( /usr/bin/plutil -extract id raw -o - - <<< "$devicerecord" )
-	fi
+	deviceid=$( /usr/bin/plutil -extract id raw -o - - <<< "$devicerecord" )
 
 	# Issue an API delete command to delete that ID before proceeding
 	/usr/bin/curl -s -X DELETE "${url}/${base}/${jumpclient}/${deviceid}" \
@@ -214,7 +189,7 @@ then
 fi
 
 # Mount the dmg into the temporary folder we just created. Make sure it doesn't annoy the user by hiding what it's doing.
-/usr/bin/hdiutil attach "${dlfolder}/bomgar-scc-${key_info}.dmg" -mountpoint "$tmpmnt" -nobrowse -noverify -noautoopen
+/usr/bin/hdiutil attach "${dlfolder}/${filename}" -mountpoint "$tmpmnt" -nobrowse -noverify -noautoopen
 
 # Find the path of the binary we're looking for
 sdc=$( /usr/bin/find "$tmpmnt" -iname "sdcust" -type f )
@@ -228,7 +203,7 @@ sleep 20
 
 # Remove the temporary mount point and downloaded file.
 /bin/rm -rf "$tmpmnt"
-/bin/rm -rf ${dlfolder}/bomgar-scc-${key_info}.dmg
+/bin/rm -rf "$filename"
 
 # All done
 exit 0
